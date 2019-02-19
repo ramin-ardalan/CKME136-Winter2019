@@ -1,0 +1,110 @@
+---
+title: "Thrombin"
+author: "Ramin Ardalan"
+date: "February 6, 2019"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+subject: Capstone project - Winter 2019
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+##Read data file
+```{r}
+thrombin <- read.csv("thrombin.data", header = FALSE)
+```
+
+##Summary of data
+```{r}
+row.cnt <- nrow(thrombin)
+col.cnt <- ncol(thrombin)
+#Due to high number of columns, Summary or str functions are useless here.
+paste("number of instances (rows):", row.cnt)
+paste("number of attributes (columns):", col.cnt)
+#Get the dustribution of class column
+paste("Class distribution:")
+dist <- table(thrombin$V1)
+dist
+paste("Active instances distribution:")
+which(thrombin$V1 == "A")
+```
+
+## check for features with all-zero values 
+```{r All-Zero Columns}
+#remove class column
+thrombin_attr <- thrombin[-1]
+col.sum <- colSums(thrombin_attr)
+#check for columns with all zero values (no variance)
+all.zero <- length(which((col.sum == 0) == TRUE))
+paste("# of columns with all zero values:", all.zero)
+```
+
+## check for instances with all-zero values (in all columns) 
+```{r All-Zero Rows}
+#find all instances with all zero attributes of Active, Inactive, and both
+idx_I <- (rowSums(thrombin_attr == 0) == ncol(thrombin_attr)) & (thrombin[,1] == "I")
+idx_I.cnt <- length(which(idx_I == TRUE))
+paste("# of Inactive instances with all zero values is: ", idx_I.cnt, ", which is ", round(idx_I.cnt*100/row.cnt,1),"% of total instances, and ", round(idx_I.cnt*100/dist[[2]],1), "% of all Inactive instances.", sep = "")
+idx_A <- (rowSums(thrombin_attr == 0) == ncol(thrombin_attr)) & (thrombin[,1] == "A")
+idx_A.cnt <- length(which(idx_A == TRUE))
+paste("# of Active instances with all zero values is: ", idx_A.cnt, ", which is ", round(idx_A.cnt*100/row.cnt,1),"% of total instances, and ", round(idx_A.cnt*100/dist[[1]],1), "% of all Active instances.", sep = "")
+idx_all <- (rowSums(thrombin_attr == 0) == ncol(thrombin_attr)) 
+paste("# of rows with all zero values:", length(which(idx_all == TRUE)))
+#filter all of all-zero Active and Inactive instances, excpet one Inactive instance
+thrombin_clean <- rbind(thrombin[which(idx_all == FALSE),], thrombin[which(idx_I == TRUE),][1,])
+```
+
+## draw a boxplot for the most & least populated column
+```{r BoxPlot}
+top.col <- thrombin_clean[, which(max(col.sum) == col.sum)+1]
+boxplot(top.col, horizontal = TRUE)
+low.col <- thrombin_clean[, which((min(col.sum) == col.sum)==TRUE)[[1]]+1]
+boxplot(low.col, horizontal = TRUE, border = c("red"))
+```
+
+## draw a distribution graph
+```{r}
+barplot(col.sum, main = "thrombin non-zero data distribution density", xlab = "Column name", ylab = "# of non-zero values per column")
+```
+
+## draw a histogram for sparsity
+```{r}
+hist(col.sum, breaks = 50, freq = TRUE, col = "red", main = "thrombin dataset data distribution histogram", xlab = "# of non-zero values per column", ylab = "frequency")
+```
+
+## draw a density graph
+```{r density graph}
+col.sum.sorted<-sort(col.sum, decreasing = TRUE)
+d <- density(col.sum.sorted)
+plot(d, main = "density graph for columns with non-zero values")
+polygon(d, col="yellow", border="red")
+```
+
+## find columns with high variance
+```{r}
+var.col <- data.frame()
+for (i in 2:col.cnt){
+  v <- var(thrombin_clean[,i])
+  if (v >= 0.19){
+    var.col <- rbind(var.col, data.frame(i,v))
+  }
+}
+```
+
+## save the clean dataset to file
+```{r}
+write.csv(thrombin_clean, file = "thrombin_clean.csv", row.names = FALSE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
