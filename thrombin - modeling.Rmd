@@ -43,11 +43,11 @@ library(HDclassif)
 conf_mtrx <- function(x, dfm = NULL, mdl = NULL, smpl = NULL, means = FALSE, emp = FALSE) {
   #Purpose: calculation of measures of prediction in a confusion matrix
   #Inputs:  x:    the prediction table as the value returned from table() function.
-  #         dfm:  optional dataframe to append the results to.
+  #         dfm:  optional dataframe to append the results to. Otherwise, create new one.
   #         mdl:  optional character specifying the name of the model as a reference.
   #         smpl: optional array specifying the name of data sampling method & count.
-  #         means:optional value to force the calculation of mean for all data.
-  #         emp:  optional value to add an empty line to the end of data frame.
+  #         means:optional logical value to force the calculation of mean for all data.
+  #         emp:  optional logical value to add an empty line to the end of data frame.
   #Output:  a dataframe with all the measures related to confusion matrix.
   #Author:  Ramin Ardalan
   #Date:    26 February 2019
@@ -67,26 +67,38 @@ conf_mtrx <- function(x, dfm = NULL, mdl = NULL, smpl = NULL, means = FALSE, emp
       cnt = smpl[2]
     }
     tbl <- as.data.frame(x)
-    df <- data.frame(model = mdl, train_data = mtd, count = cnt, TP = x[1], FN = x[2], FP = x[3], TN = x[4], std_accuracy = NA, wtd_accuracy = NA, precision = NA, recall = NA, f1_score = NA, error = NA, sensitivity = NA, specificity = NA)
-    # standard accuracy based on (TP + TN) divided by (TP + FP + TN + FN)
-    df$std_accuracy <- round((tbl$Freq[1] + tbl$Freq[4]) / sum(tbl$Freq), 4)
-    # accuracy based on the class distribution and imbalance
-    df$wtd_accuracy <- round(0.5 * ((tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[2])) + (tbl$Freq[4] / (tbl$Freq[3] + tbl$Freq[4]))), 4)
-    #recall is 'true positives' divided by 'true positives' plus 'false negatives'.
-    df$recall <- round(tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[2]), 4)
-    #Precision is 'true positives' divided by 'true positives' plus 'false positives'.
-    df$precision <- round(tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[3]), 4)
-    #for a balanced classification model, we try to maximize the F1 score.
-    if ((df$precision == 0) || (df$recall == 0)) {
-      df$f1_score <- 0
+    if (length(x) != 4) {
+      tp_ = NA
+      fn_ = NA
+      fp_ = NA
+      tn_ = NA
+      if (length(x) == 2) {
+        fn_ = x[1]
+        fp_ = x[2]
+      }
+      df = data.frame(model = mdl, train_data = mtd, count = cnt, TP = tp_, FN = fn_, FP = fp_, TN = tn_, std_accuracy = NA, wtd_accuracy = NA, precision = NA, recall = NA, f1_score = NA, error = NA, sensitivity = NA, specificity = NA)
     } else {
-      df$f1_score <- round(2 * ((df$precision * df$recall) / (df$precision + df$recall)), 4)
+      df <- data.frame(model = mdl, train_data = mtd, count = cnt, TP = x[1], FN = x[2], FP = x[3], TN = x[4], std_accuracy = NA, wtd_accuracy = NA, precision = NA, recall = NA, f1_score = NA, error = NA, sensitivity = NA, specificity = NA)
+      # standard accuracy based on (TP + TN) divided by (TP + FP + TN + FN)
+      df$std_accuracy <- round((tbl$Freq[1] + tbl$Freq[4]) / sum(tbl$Freq), 4)
+      # weighted accuracy based on the class distribution and imbalance
+      df$wtd_accuracy <- round(0.5 * ((tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[2])) + (tbl$Freq[4] / (tbl$Freq[3] + tbl$Freq[4]))), 4)
+      #recall is 'true positives' divided by 'true positives' plus 'false negatives'.
+      df$recall <- round(tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[2]), 4)
+      #Precision is 'true positives' divided by 'true positives' plus 'false positives'.
+      df$precision <- round(tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[3]), 4)
+      #for a balanced classification model, we try to maximize the F1 score.
+      if ((df$precision == 0) || (df$recall == 0)) {
+        df$f1_score <- 0
+      } else {
+        df$f1_score <- round(2 * ((df$precision * df$recall) / (df$precision + df$recall)), 4)
+      }
+      df$error <- round((tbl$Freq[2] + tbl$Freq[3]) / sum(tbl$Freq), 4)
+      # Sensitivity is 'true positives' divided by 'true positives' plus 'false negatives'
+      df$sensitivity <- round(tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[2]), 4)
+      # Specificity is 'true negatives' divided by 'true negatives' plus 'false positives'
+      df$specificity <- round(tbl$Freq[4] / (tbl$Freq[4] + tbl$Freq[3]), 4)
     }
-    df$error <- round((tbl$Freq[2] + tbl$Freq[3]) / sum(tbl$Freq), 4)
-    # Sensitivity is 'true positives' divided by 'true positives' plus 'false negatives'
-    df$sensitivity <- round(tbl$Freq[1] / (tbl$Freq[1] + tbl$Freq[2]), 4)
-    # Specificity is 'true negatives' divided by 'true negatives' plus 'false positives'
-    df$specificity <- round(tbl$Freq[4] / (tbl$Freq[4] + tbl$Freq[3]), 4)
     if (is.null(dfm) == TRUE) {
       dfm = df
     } else {
@@ -104,10 +116,6 @@ conf_mtrx <- function(x, dfm = NULL, mdl = NULL, smpl = NULL, means = FALSE, emp
     print(e)
     return(NULL)
   })
-}
-
-normalize <- function(x) {
-    return ((x - min(x)) / (max(x) - min(x)))
 }
 
 elapsed_time <- function(x = NULL) {
@@ -176,6 +184,8 @@ for (i in c(1, 5, 10, 15, 20, 25, 30, 35, 40)){
   }
   df <- rbind(df, data.frame(dataset_columns = ncol(thrombin.reduced), pca_columns = length(pca.var), pca_selected = var.cnt, col_threshold = i, var_Threshold = var.threshold))
 }
+write.csv(df, file = "results_pca_reduced_cols.csv", row.names = FALSE, quote = FALSE)
+# plot the values
 par(pch=22, col="blue")
 plot(df$col_threshold, df$dataset_columns, type="n", xlab = "Removal of columns with total # of non-zero values \n from original dataset", ylab = "Remaining # of dataset columns")
 lines(df$col_threshold, df$dataset_columns, type="b")
@@ -188,7 +198,7 @@ paste("Time taken to analyze data columns:", elapsed_time(start_time))
 
 ## reducing columns [executing this section is optional and should be done only based on the results from previous section]
 ```{r Reduce Columns}
-limit.high <- 1
+limit.high <- 10
 col.sum <- colSums(thrombin[-1])
 thrombin.reduced <- thrombin[-(which(col.sum >= 0 & col.sum <= limit.high) + 1)]
 col.sum <- colSums(thrombin.reduced[-1])
@@ -197,9 +207,15 @@ col.sum <- colSums(thrombin.reduced[-1])
 ## PCA analysis
 ```{r PCA}
 start_time <- Sys.time()
+# create the train and test sets
+set.seed(101)
+idx_trainset <- sample(nrow(thrombin.reduced), floor(nrow(thrombin.reduced) * 0.75))
+thrombin.train <- thrombin.reduced[idx_trainset,] 
+thrombin.test <- thrombin.reduced[-idx_trainset,] 
+#
 # $rotation: The relationship (correlation) between the initial variables and the principal components
 # $x: The values of each sample in terms of the principal components
-thrombin_pca <- prcomp(thrombin.reduced[-1], scale. = TRUE, center = TRUE, retx = TRUE)
+thrombin_pca <- prcomp(thrombin.train[-1], center = TRUE, retx = TRUE)
 pca.var <- thrombin_pca$sdev ^ 2 / sum(thrombin_pca$sdev ^ 2) * 100
 var.sum <- 0
 var.cnt <- 0
@@ -210,9 +226,12 @@ for (v in pca.var){
   var.cnt <- var.cnt + 1
 }
 paste("PC", var.cnt, " (from total of PC", length(pca.var), ") contains ", var.threshold, "% variation of original data.", sep = "")
-thrombin_new <- cbind(thrombin.reduced[1], thrombin_pca$x[,1:var.cnt])
 barplot(pca.var[1:100], xlab = "Top 100 Principal Components", ylab = "Percent of Variance")
-#write.csv(thrombin_new, file = "thrombin_reduced.csv", row.names = FALSE)
+# extract transformed Train data
+thrombin.train <- cbind(thrombin.train[1], thrombin_pca$x[,1:var.cnt])
+# move Test data to PCA dimension
+thrombin.test <- cbind(thrombin.test[1], as.data.frame(predict(thrombin_pca, newdata = thrombin.test)))
+thrombin.test <- thrombin.test[,1:(var.cnt+1)]
 paste("Total time to execute the PCA:", elapsed_time(start_time))
 ```
 
@@ -221,32 +240,31 @@ paste("Total time to execute the PCA:", elapsed_time(start_time))
 block_start_time <- Sys.time()
 start_time <- Sys.time()
 #
-# create the train and test sets
-set.seed(101)
-idx_trainset <- sample(nrow(thrombin_new), floor(nrow(thrombin_new) * 0.70))
-thrombin.train <- thrombin_new[idx_trainset,] 
-thrombin.test <- thrombin_new[-idx_trainset,] 
-#
 # Build balanced datasets with 4 different methods from ROSE package
 #
 # over-sampled minority class (Active)
+set.seed(101)
 thrombin.balanced.over <- ovun.sample(V1 ~ ., data = thrombin.train, method = "over", N = length(which(thrombin.train$V1 == "I")) * 2, seed = 101)$data
 # Under-sampled majority class (Inactive)
+set.seed(101)
 thrombin.balanced.under <- ovun.sample(V1 ~ ., data = thrombin.train, method = "under", N = length(which(thrombin.train$V1 == "A")) * 2, seed = 101)$data
 # mixed of over and under sampling
+set.seed(101)
 thrombin.balanced.both <- ovun.sample(V1 ~ ., data = thrombin.train, method = "both", p = 0.5, seed = 101)$data
 # synthetic over-sampling
+set.seed(101)
 thrombin.balanced.rose <- ROSE(V1 ~ ., data = thrombin.train, p = 0.5, seed = 101)$data
 #
 # Build balanced datasets with 3 different setting from DMwR package (SMOTE algorithm)
 #
-Active.cnt <- length(which(thrombin_new[,1] == "A"))
-Inactive.cnt <- nrow(thrombin_new) - Active.cnt
 # mix of over and under sampling
+set.seed(101)
 thrombin.balanced.smote_b <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 1000, perc.under = 100)
 # ovrsampling 
+set.seed(101)
 thrombin.balanced.smote_o <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 2500, perc.under = 100)
 # undersampling
+set.seed(101)
 thrombin.balanced.smote_u <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 100, perc.under = 200)
 #
 paste("Total time to create multiple balanced datasets:", elapsed_time(start_time))
@@ -601,182 +619,313 @@ write.csv(results, file = "results.csv", row.names = FALSE, quote = FALSE, sep =
 paste("Total time to run all models:", elapsed_time(block_start_time))
 ```
 
-## Further Analysis for Selected Models (10 fold cross-validation)
-```{r}
+## Further Analysis for Selected Models (N-fold cross-validation)
+```{r 10-fold CV}
+library(pROC)
 # Based on the above section results, all the models with weighted accuracy above 85%, 
 # will be examined further through 10-fold cross-validation. The only exception will  
 # be HDDA which has the 10-fold CV already embedded in its functionality.
 start_time <- Sys.time()
+fold.cnt <- 10
+thrombin.testset <- vector("list", fold.cnt)
+thrombin.sample.bal <- vector("list", fold.cnt)
+thrombin.sample.under <- vector("list", fold.cnt)
+thrombin.sample.over <- vector("list", fold.cnt)
+thrombin.sample.rose <- vector("list", fold.cnt)
+set.seed(101)
 all.results <- data.frame()
-folds <- createFolds(thrombin_new$V1, 10)
+folds <- createFolds(thrombin.reduced$V1, k = fold.cnt)
 i <- 0
 for (f in folds) { 
   i <- i + 1
   # build the training and testsets based on each fold
-  thrombin.train <- thrombin_new[-f,] 
-  thrombin.test <- thrombin_new[f,]
+  thrombin.train <- thrombin.reduced[-f,] 
+  thrombin.test <- thrombin.reduced[f,]
+  # run the PCA on each fold and update the train and test sets
+  thrombin_pca <- prcomp(thrombin.train[-1], center = TRUE, retx = TRUE)
+  pca.var <- thrombin_pca$sdev ^ 2 / sum(thrombin_pca$sdev ^ 2) * 100
+  var.sum <- 0
+  var.cnt <- 0
+  var.threshold <- 95   #for a 95% cumulative variance
+  for (v in pca.var){
+    if (var.sum > var.threshold) {break} 
+    var.sum <- var.sum + v
+    var.cnt <- var.cnt + 1
+  }
+  # build the new Train and Test sets using PCA
+  thrombin.train <- cbind(thrombin.train[1], thrombin_pca$x[,1:var.cnt])
+  thrombin.test <- cbind(thrombin.test[1], as.data.frame(predict(thrombin_pca, newdata = thrombin.test)))
+  thrombin.test <- thrombin.test[,1:(var.cnt+1)]
+  # ROSE sampling
+  set.seed(101)
+  rose.all <- ROSE(V1 ~ ., data = thrombin.train, p = 0.5, seed = 101)$data
   # SMOTE balanced sampling
+  set.seed(101)
   smote.both <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 1000, perc.under = 100)
   # SMOTE under sampling
+  set.seed(101)
   smote.under <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 100, perc.under = 200)
   # SMOTE over sampling
+  set.seed(101)
   smote.over <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 2500, perc.under = 100)
-  if (i == 1){
-    test1 = thrombin.test
-    both1 <- smote.both
-    under1 <- smote.under
-    over1 <- smote.over
-  } else if (i == 2) {
-    test2 = thrombin.test
-    both2 <- smote.both
-    under2 <- smote.under
-    over2 <- smote.over
-  } else if (i == 3) {
-    test3 = thrombin.test
-    both3 <- smote.both
-    under3 <- smote.under
-    over3 <- smote.over
-  } else if (i == 4) {
-    test4 = thrombin.test
-    both4 <- smote.both
-    under4 <- smote.under
-    over4 <- smote.over
-  } else if (i == 5) {
-    test5 = thrombin.test
-    both5 <- smote.both
-    under5 <- smote.under
-    over5 <- smote.over
-  } else if (i == 6) {
-    test6 = thrombin.test
-    both6 <- smote.both
-    under6 <- smote.under
-    over6 <- smote.over
-  } else if (i == 7) {
-    test7 = thrombin.test
-    both7 <- smote.both
-    under7 <- smote.under
-    over7 <- smote.over
-  } else if (i == 8) {
-    test8 = thrombin.test
-    both8 <- smote.both
-    under8 <- smote.under
-    over8 <- smote.over
-  } else if (i == 9) {
-    test9 = thrombin.test
-    both9 <- smote.both
-    under9 <- smote.under
-    over9 <- smote.over
-  } else if (i == 10) {
-    test10 = thrombin.test
-    both10 <- smote.both
-    under10 <- smote.under
-    over10 <- smote.over
-  }
+  # Storing samples for later use by multiple models
+  thrombin.sample.bal[[i]] <- as.data.frame(smote.both)
+  thrombin.sample.under[[i]] <- as.data.frame(smote.under)
+  thrombin.sample.over[[i]] <- as.data.frame(smote.over)
+  thrombin.sample.rose[[i]] <- as.data.frame(rose.all)
+  thrombin.testset[[i]] <- thrombin.test
+  #assign(paste0("test", i), thrombin.test)
+  #assign(paste0("both", i), smote.both)
+  #assign(paste0("under", i), smote.under)
+  #assign(paste0("over", i), smote.over)
 }
-thrombin.testset <- list(test1, test2, test3, test4, test5, test6, test7, test8, test9, test10)
-thrombin.sample.bal <- list(both1, both2, both3, both4, both5, both6, both7, both8, both9, both10)
-thrombin.sample.under <- list(under1, under2, under3, under4, under5, under6, under7, under8, under9, under10)
-thrombin.sample.over <- list(over1, over2, over3, over4, over5, over6, over7, over8, over9, over10)
-
-#
-# Decision Tree using SMOTE balanced sampling
-results <- data.frame()
-i <- 0
-for (i in 1:10) {
-  thrombin.train <- thrombin.sample.bal[[i]]
-  paste("train",i)
-  thrombin.test <- thrombin.testset[[i]]
-  paste("test",i)
-  thrombin.model <- rpart(V1 ~ ., data = thrombin.train)
-  thrombin.pred <- predict(thrombin.model, newdata = thrombin.test, type = thrombin.model$method)
-  thrombin.table <- table(thrombin.pred, thrombin.test$V1)
-  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "DT", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
-}
-all.results <- rbind(all.results, results)
+#for (i in 1:fold.cnt) {
+#  thrombin.testset[[i]] <- as.data.frame(get(paste0("test", i)))
+#  thrombin.sample.bal[[i]] <- as.data.frame(get(paste0("both", i)))
+#  thrombin.sample.under[[i]] <- as.data.frame(get(paste0("under", i)))
+#  thrombin.sample.over[[i]] <- as.data.frame(get(paste0("over", i)))
+#}
 #
 # Decision Tree using SMOTE under sampling
 results <- data.frame()
+auc <- data.frame()
 i <- 0
-for (i in 1:10) {
+for (i in 1:fold.cnt) {
   thrombin.train <- thrombin.sample.under[[i]]
   thrombin.test <- thrombin.testset[[i]]
   thrombin.model <- rpart(V1 ~ ., data = thrombin.train)
   thrombin.pred <- predict(thrombin.model, newdata = thrombin.test, type = thrombin.model$method)
   thrombin.table <- table(thrombin.pred, thrombin.test$V1)
-  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "DT", smpl = c("smote-under", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "DT", smpl = c("smote-under", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred, plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
 }
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
 #
 # C4.5 Decision Tree (J48) using SMOTE balanced sampling
 results <- data.frame()
+auc <- data.frame()
 i <- 0
-for (i in 1:10) {
+for (i in 1:fold.cnt) {
   thrombin.train <- thrombin.sample.bal[[i]]
   thrombin.test <- thrombin.testset[[i]]
   thrombin.model <- J48(V1 ~ ., data = thrombin.train)
   thrombin.pred <- predict(thrombin.model, newdata = thrombin.test, type = thrombin.model$method)
   thrombin.table <- table(thrombin.pred, thrombin.test$V1)
-  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "J48", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "J48", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred, plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
 }
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
 #
-# C4.5 Decision Tree (J48) using SMOTE under sampling
+# KNN using SMOTE balanced sampling
 results <- data.frame()
+auc <- data.frame()
 i <- 0
-for (i in 1:10) {
-  thrombin.train <- thrombin.sample.under[[i]]
+for (i in 1:fold.cnt) {
+  thrombin.train <- thrombin.sample.bal[[i]]
   thrombin.test <- thrombin.testset[[i]]
-  thrombin.model <- J48(V1 ~ ., data = thrombin.train)
-  thrombin.pred <- predict(thrombin.model, newdata = thrombin.test, type = thrombin.model$method)
+  thrombin.model <- train(V1 ~ ., data = thrombin.train, method = "knn")
+  thrombin.pred <- predict(thrombin.model, newdata = thrombin.test[-1])
   thrombin.table <- table(thrombin.pred, thrombin.test$V1)
-  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "J48", smpl = c("smote-under", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "KNN", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred, plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
 }
+results <- cbind(results, auc)
+all.results <- rbind(all.results, results)
+#
+# Naive Bayes using ROSE sampling
+results <- data.frame()
+auc <- data.frame()
+i <- 0
+for (i in 1:fold.cnt) {
+  thrombin.train <- thrombin.sample.rose[[i]]
+  thrombin.test <- thrombin.testset[[i]]
+  thrombin.model <- naiveBayes(thrombin.train[-1], thrombin.train[,1])
+  thrombin.pred <- predict(thrombin.model, thrombin.test[-1])
+  thrombin.table <- table(thrombin.pred, thrombin.test[,1])
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "NB", smpl = c("rose", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred, plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
+}
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
 #
 # Sparse SVM with SMOTE oversampling
 results <- data.frame()
+auc <- data.frame()
 i <- 0
-for (i in 1:10) {
+for (i in 1:fold.cnt) {
   thrombin.train <- thrombin.sample.over[[i]]
   thrombin.test <- thrombin.testset[[i]]
   thrombin.model <- cv.sparseSVM(as.matrix(thrombin.train[-1]), thrombin.train[,1], seed = 101)
   thrombin.pred <- predict(thrombin.model, as.matrix(thrombin.test[-1]))
   thrombin.table <- table(thrombin.pred, thrombin.test[,1])
-  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "SSVM", smpl = c("smote-over", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "SSVM", smpl = c("smote-over", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, as.factor(thrombin.pred), plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
 }
+results <- cbind(results, auc)
+all.results <- rbind(all.results, results)
+#
+# Sparse SVM with SMOTE undersampling
+results <- data.frame()
+auc <- data.frame()
+i <- 0
+for (i in 1:fold.cnt) {
+  thrombin.train <- thrombin.sample.under[[i]]
+  thrombin.test <- thrombin.testset[[i]]
+  thrombin.model <- cv.sparseSVM(as.matrix(thrombin.train[-1]), thrombin.train[,1], seed = 101)
+  thrombin.pred <- predict(thrombin.model, as.matrix(thrombin.test[-1]))
+  thrombin.table <- table(thrombin.pred, thrombin.test[,1])
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "SSVM", smpl = c("smote-under", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, as.factor(thrombin.pred), plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
+}
+results <- cbind(results, auc)
+all.results <- rbind(all.results, results)
+#
+# Sparse SVM with SMOTE balance-sampling
+results <- data.frame()
+auc <- data.frame()
+i <- 0
+for (i in 1:fold.cnt) {
+  thrombin.train <- thrombin.sample.bal[[i]]
+  thrombin.test <- thrombin.testset[[i]]
+  thrombin.model <- cv.sparseSVM(as.matrix(thrombin.train[-1]), thrombin.train[,1], seed = 101)
+  thrombin.pred <- predict(thrombin.model, as.matrix(thrombin.test[-1]))
+  thrombin.table <- table(thrombin.pred, thrombin.test[,1])
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "SSVM", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, as.factor(thrombin.pred), plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
+}
+results <- cbind(results, auc)
+all.results <- rbind(all.results, results)
+#
+# Sparse SVM with ROSE sampling
+results <- data.frame()
+auc <- data.frame()
+i <- 0
+for (i in 1:fold.cnt) {
+  thrombin.train <- thrombin.sample.rose[[i]]
+  thrombin.test <- thrombin.testset[[i]]
+  thrombin.model <- cv.sparseSVM(as.matrix(thrombin.train[-1]), thrombin.train[,1], seed = 101)
+  thrombin.pred <- predict(thrombin.model, as.matrix(thrombin.test[-1]))
+  thrombin.table <- table(thrombin.pred, thrombin.test[,1])
+  results <- conf_mtrx(thrombin.table, dfm = results, mdl = "SSVM", smpl = c("rose", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, as.factor(thrombin.pred), plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
+}
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
 #
 # High Diomentional Discriminant Analysis (HDDA) using SMOTE balanced sampling
 results <- data.frame()
+auc <- data.frame()
 i <- 0
-for (i in 1:10) {
+for (i in 1:fold.cnt) {
   thrombin.train <- thrombin.sample.bal[[i]]
   thrombin.test <- thrombin.testset[[i]]
   thrombin.model <- hdda(thrombin.train[-1], thrombin.train$V1, show = FALSE, d_select = "Cattell", graph = FALSE, threshold = 0.05)
   thrombin.pred <- predict(thrombin.model, thrombin.test[-1], thrombin.test$V1)
-  results <- conf_mtrx(thrombin.pred$confusion, dfm = results, mdl = "HDDA", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
+  results <- conf_mtrx(thrombin.pred$confusion, dfm = results, mdl = "HDDA", smpl = c("smote-o/u", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred$class, plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
 }
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
 #
 # High Diomentional Discriminant Analysis (HDDA) using SMOTE under sampling
 results <- data.frame()
+auc <- data.frame()
 i <- 0
-for (i in 1:10) {
+for (i in 1:fold.cnt) {
   thrombin.train <- thrombin.sample.under[[i]]
   thrombin.test <- thrombin.testset[[i]]
   thrombin.model <- hdda(thrombin.train[-1], thrombin.train$V1, show = FALSE, d_select = "Cattell", graph = FALSE, threshold = 0.05)
   thrombin.pred <- predict(thrombin.model, thrombin.test[-1], thrombin.test$V1)
-  results <- conf_mtrx(thrombin.pred$confusion, dfm = results, mdl = "HDDA", smpl = c("smote-under", nrow(thrombin.train)), means = (i == 10), emp = (i == 10))
+  results <- conf_mtrx(thrombin.pred$confusion, dfm = results, mdl = "HDDA", smpl = c("smote-under", nrow(thrombin.train)), means = (i == fold.cnt), emp = (i == fold.cnt))
+  auc <- rbind(auc, data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred$class, plotit = FALSE)$auc, 4)))
+  if (i == fold.cnt) {
+    auc <- rbind(auc, round(mean(as.numeric(auc[1:10,1])), 4))
+    auc <- rbind(auc, "")
+  }
 }
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
 #
-# Add two HDDA results with internal 10-fold CV (for comparison purposes)
-results <- conf_mtrx(thrombin.smote_b.hdda.pred$confusion, mdl = "HDDA", smpl = c("Int/smote-o/u", nrow(thrombin.balanced.smote_b)))
+# High Diomentional Discriminant Analysis (HDDA) using internal 10-fold CV function
+auc <- data.frame()
+thrombin.model <- hdda(thrombin.balanced.smote_u[-1], thrombin.balanced.smote_u$V1, show = FALSE, d_select = "CV", cv.vfold = 10, graph = FALSE, threshold = 0.05)
+thrombin.pred <- predict(thrombin.model, thrombin.test[-1], thrombin.test$V1)
+results <- conf_mtrx(thrombin.pred$confusion, mdl = "HDDA", smpl = c("smote-under", nrow(thrombin.balanced.smote_u)))
+auc <- data.frame(Auc = round(roc.curve(thrombin.test$V1, thrombin.pred$class, plotit = FALSE)$auc, 4))
+results <- cbind(results, auc)
 all.results <- rbind(all.results, results)
-results <- conf_mtrx(thrombin.smote_u.hdda.pred$confusion, mdl = "HDDA", smpl = c("Int/smote-under", nrow(thrombin.balanced.smote_u)))
-all.results <- rbind(all.results, results)
+#
 all.results
-write.csv(all.results, file = "final-results.csv", row.names = FALSE, quote = FALSE, sep = ",")
-paste("Total time to execute the RF model:", elapsed_time(start_time))
+write.csv(all.results, file = paste0("results_final_", fold.cnt, "fold-cv.csv"), row.names = FALSE, quote = FALSE)
+paste0("Total time to execute the ", fold.cnt, "-fold CV: ", elapsed_time(start_time))
 ```
 
+# This section is used for building the final model for future predictions in one single section.
+# The TEST dataset below is missing the values in class attribute, as it was intended for competition, and as such, can not be verified.
+# However, if the results are availbale, it can be compared with below output.
+```{r Final Prediction Model}
+start_time <- Sys.time()
+# reading extrenal Test dataset
+thrombin.test <- read.csv("thrombin.testset", header = FALSE)
+# reduce rare/weak attributes
+limit.high <- 10
+col.sum <- colSums(thrombin[-1])
+thrombin.reduced <- thrombin[-(which(col.sum >= 0 & col.sum <= limit.high) + 1)]
+col.sum <- colSums(thrombin.reduced[-1])
+# run PCA
+thrombin_pca <- prcomp(thrombin.reduced[-1], center = TRUE, retx = TRUE)
+pca.var <- thrombin_pca$sdev ^ 2 / sum(thrombin_pca$sdev ^ 2) * 100
+var.sum <- 0
+var.cnt <- 0
+for (v in pca.var){
+  if (var.sum > 95) {break}   #for a 95% cumulative variance
+  var.sum <- var.sum + v
+  var.cnt <- var.cnt + 1
+}
+thrombin.train <- cbind(thrombin.reduced[1], thrombin_pca$x[,1:var.cnt])
+# Apply balanced sampling
+set.seed(101)
+thrombin.train <- SMOTE(V1 ~ ., data = thrombin.train, perc.over = 1000, perc.under = 100)
+# build KNN prediction model
+thrombin.model <- train(V1 ~ ., data = thrombin.train, method = "knn")
+thrombin.pred <- predict(thrombin.model, newdata = thrombin.test)
+paste0("Total time to execute the final model: ", elapsed_time(start_time))
+```
